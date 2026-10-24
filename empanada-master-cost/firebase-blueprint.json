@@ -1,0 +1,37 @@
+{
+  "entities": {
+    "Ingredient": {
+      "title": "Ingredient",
+      "description": "Ingredient used in a recipe",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "unitType": { "type": "string", "enum": ["kg", "lt", "unid"] },
+        "buyPrice": { "type": "number" },
+        "packageSize": { "type": "number" },
+        "quantityUsed": { "type": "number" }
+      },
+      "required": ["id", "name", "unitType", "buyPrice", "packageSize", "quantityUsed"]
+    },
+    "Recipe": {
+      "title": "Recipe",
+      "description": "Recipe for empanadas",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "ingredients": { "type": "array" },
+        "yield": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "ingredients", "yield", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/recipes/{recipeId}": {
+      "schema": "Recipe",
+      "description": "Recipes collection"
+    }
+  }
+}

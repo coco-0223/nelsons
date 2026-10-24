@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fcfaf5;
+  --foreground: #0f2540;
+  --primary: #24598d;
+  --primary-foreground: #ffffff;
+  --secondary: #0f2540;
+  --secondary-foreground: #ffffff;
+  --accent: #e8f1fa;
+  --accent-foreground: #0f2540;
+  --gold: #FFC71F;
+  --gold-foreground: #0f2540;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-archivo-black);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+h1, h2, h3, h4, .font-archivo {
+  font-family: var(--font-archivo-black), Impact, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Hide scrollbars cleanly across all browsers */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes fly-to-cart {
+  0% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 1; animation-timing-function: ease-in; }
+  25% { transform: translate(var(--cp1-x), var(--cp1-y)) scale(1.3) rotate(360deg); opacity: 1; animation-timing-function: linear; }
+  50% { transform: translate(var(--cp2-x), var(--cp2-y)) scale(1) rotate(720deg); opacity: 0.9; animation-timing-function: linear; }
+  75% { transform: translate(var(--cp3-x), var(--cp3-y)) scale(0.6) rotate(1080deg); opacity: 0.8; animation-timing-function: ease-out; }
+  100% { transform: translate(calc(100vw - 120px - var(--start-x)), calc(100vh - 120px - var(--start-y))) scale(0.2) rotate(1440deg); opacity: 0; }
+}
+
+.animate-fly-to-cart {
+  animation: fly-to-cart 2.5s forwards;
+}
