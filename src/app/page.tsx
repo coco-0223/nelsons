@@ -11,6 +11,7 @@ import { DailyRewardAnimation } from "@/components/DailyRewardAnimation";
 import { ReferralDashboard } from "@/components/ReferralDashboard";
 import { PublicCouponsSection } from "@/components/PublicCouponsSection";
 import { NelsonsSplitMenu } from "@/components/NelsonsSplitMenu";
+import { CurvedHeroCarousel } from "@/components/CurvedHeroCarousel";
 
 // Exclusivamente colores oficiales de la marca NELSON'S para los recuadros de productos inferiores
 const BRAND_PRODUCT_CARD_STYLES = [
@@ -656,10 +657,18 @@ export default function Home() {
             </h1>
           </div>
 
-          {/* 2 ACTION BUTTONS:
-              Reemplazar Ver Menú por: COMPRAR HOY
-              Reemplazar Nuestra Historia por: COMPRAR OTRO DÍA */}
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-5 px-4 mb-7">
+          {/* NUEVO CARRUSEL CILÍNDRICO CURVO INTERACTIVO 3D */}
+          <div className="w-full mt-2 mb-6">
+            <CurvedHeroCarousel
+              products={products}
+              onSelectProduct={(product) => {
+                handleProductRectangleClick(product);
+              }}
+            />
+          </div>
+
+          {/* 2 BOTONES DE ACCIÓN: COMPRAR HOY y COMPRAR OTRO DÍA (Ubicados debajo del carrusel curvo) */}
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-5 px-4 mb-6">
             <button
               type="button"
               onClick={() => smoothScrollToSection("menu")}
@@ -677,8 +686,37 @@ export default function Home() {
             </button>
           </div>
 
-          {/* 2 SUBTLE INFO PILLS (Like Reference Image 1) */}
-          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 px-4 mb-10">
+          {/* 2 BOTONES SIMPLES (SIN IMAGEN) PARA PIZZAS Y FOCACCIAS */}
+          <div className="flex items-center justify-center gap-3 sm:gap-4 px-4 mb-8">
+            <button
+              type="button"
+              onClick={() => handleCategoryBoxClick("pizza")}
+              className={`font-archivo px-6 sm:px-8 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 border-2 ${
+                activeCategory === "pizza"
+                  ? "bg-[#FFC71F] text-[#0f2540] border-[#FFC71F] shadow-lg scale-105"
+                  : "bg-white/10 text-white border-white/30 hover:bg-white/20"
+              }`}
+            >
+              <span>🍕</span>
+              <span>VER PIZZAS</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleCategoryBoxClick("focaccia")}
+              className={`font-archivo px-6 sm:px-8 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 border-2 ${
+                activeCategory === "focaccia"
+                  ? "bg-[#FFC71F] text-[#0f2540] border-[#FFC71F] shadow-lg scale-105"
+                  : "bg-white/10 text-white border-white/30 hover:bg-white/20"
+              }`}
+            >
+              <span>🫓</span>
+              <span>VER FOCACCIAS</span>
+            </button>
+          </div>
+
+          {/* 2 SUBTLE INFO PILLS */}
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 px-4 mb-2">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/30 bg-white/5 text-white/90 text-xs sm:text-sm font-medium">
               <Clock size={14} className="text-[#FFC71F]" />
               <span>Entregas en el día o programadas</span>
@@ -688,116 +726,6 @@ export default function Home() {
               <span>Fresco, casero y natural</span>
             </div>
           </div>
-
-          {/* 2 LARGE RECTANGULAR CATEGORY BOXES: PIZZAS & FOCACCIAS (Like Reference Image 3) */}
-          <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-7 mb-12">
-            {/* Recuadro 1: PIZZAS */}
-            <button
-              type="button"
-              onClick={() => handleCategoryBoxClick("pizza")}
-              className={`group relative h-52 sm:h-64 md:h-72 rounded-[26px] overflow-hidden p-1.5 transition-all duration-300 shadow-2xl cursor-pointer ${
-                activeCategory === "pizza"
-                  ? "bg-[#FFC71F] scale-[1.01] ring-4 ring-[#FFC71F]/40"
-                  : "bg-[#FFC71F]/80 hover:bg-[#FFC71F] hover:scale-[1.01]"
-              }`}
-            >
-              <div className="w-full h-full rounded-[20px] overflow-hidden relative">
-                <img
-                  src="https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=1000&q=80"
-                  alt="PIZZAS"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-black/25 group-hover:bg-black/15 transition-colors flex items-center justify-center">
-                  <span className="font-archivo text-white text-3xl sm:text-4xl md:text-5xl uppercase tracking-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.85)]">
-                    PIZZAS
-                  </span>
-                </div>
-              </div>
-            </button>
-
-            {/* Recuadro 2: FOCACCIAS */}
-            <button
-              type="button"
-              onClick={() => handleCategoryBoxClick("focaccia")}
-              className={`group relative h-52 sm:h-64 md:h-72 rounded-[26px] overflow-hidden p-1.5 transition-all duration-300 shadow-2xl cursor-pointer ${
-                activeCategory === "focaccia"
-                  ? "bg-[#FFC71F] scale-[1.01] ring-4 ring-[#FFC71F]/40"
-                  : "bg-[#FFC71F]/80 hover:bg-[#FFC71F] hover:scale-[1.01]"
-              }`}
-            >
-              <div className="w-full h-full rounded-[20px] overflow-hidden relative">
-                <img
-                  src="https://images.unsplash.com/photo-1586444248902-2f64eddc13df?auto=format&fit=crop&w=1000&q=80"
-                  alt="FOCACCIAS"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-black/25 group-hover:bg-black/15 transition-colors flex items-center justify-center">
-                  <span className="font-archivo text-white text-3xl sm:text-4xl md:text-5xl uppercase tracking-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.85)]">
-                    FOCACCIAS
-                  </span>
-                </div>
-              </div>
-            </button>
-          </div>
-
-          {/* BELOW CATEGORY BOXES: FULL-WIDTH PRODUCT CARDS ROW, NO SCROLLBAR VISIBLE, ONLY BRAND COLORS */}
-          {products.length > 0 && (
-            <div className="w-full">
-              <div className="w-full flex gap-4 sm:gap-5 overflow-x-auto no-scrollbar px-4 sm:px-8 pb-2 snap-x snap-mandatory">
-                {products.map((product, idx) => {
-                  const brandStyle = BRAND_PRODUCT_CARD_STYLES[idx % BRAND_PRODUCT_CARD_STYLES.length];
-                  const photo =
-                    Array.isArray(product.images) && product.images.length > 0
-                      ? product.images[0]
-                      : product.imageUrl;
-                  const displayPrice = product.priceOffer || product.priceToday;
-
-                  return (
-                    <button
-                      key={product.id}
-                      type="button"
-                      onClick={() => handleProductRectangleClick(product)}
-                      style={{
-                        backgroundColor: brandStyle.bg,
-                        color: brandStyle.text,
-                        borderColor: brandStyle.border,
-                      }}
-                      className="snap-start shrink-0 flex-1 min-w-[200px] sm:min-w-[230px] rounded-[24px] p-2.5 border-2 flex flex-col justify-between shadow-xl hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group text-center"
-                    >
-                      <div className="w-full h-44 sm:h-48 rounded-[18px] overflow-hidden bg-[#0a192c] relative">
-                        {photo ? (
-                          <img
-                            src={photo}
-                            alt={product.name}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-5xl">
-                            {product.category === "focaccia" ? "🫓" : "🍕"}
-                          </div>
-                        )}
-                        <span className="absolute top-2.5 left-2.5 bg-[#24598d]/90 text-[#FFC71F] border border-[#FFC71F]/50 text-[10px] font-archivo uppercase px-2.5 py-0.5 rounded-full">
-                          {product.category === "focaccia" ? "Focaccia" : "Pizza"}
-                        </span>
-                      </div>
-
-                      <div className="pt-3 pb-1.5 px-2 flex flex-col items-center justify-center">
-                        <span className="font-archivo text-sm sm:text-base uppercase leading-tight line-clamp-1">
-                          {product.name}
-                        </span>
-                        <span
-                          style={{ color: brandStyle.priceColor }}
-                          className="font-archivo text-lg sm:text-xl mt-0.5"
-                        >
-                          ${displayPrice.toLocaleString("es-AR")}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </section>
       </div>
 
