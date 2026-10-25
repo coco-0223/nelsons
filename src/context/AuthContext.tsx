@@ -33,39 +33,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
-      if (firebaseUser) {
-        // Fetch custom user profile from Firestore
-        const docRef = doc(db, "users", firebaseUser.uid);
-        const docSnap = await getDoc(docRef);
-        const isSuperadmin = (firebaseUser.email || "").toLowerCase() === SUPERADMIN_EMAIL.toLowerCase();
-        
-        if (docSnap.exists()) {
-          const profile = docSnap.data() as UserProfile;
-          // Si es superadmin aseguramos que tenga role: "admin"
-          if (isSuperadmin && profile.role !== "admin") {
-            const updatedProfile = { ...profile, role: "admin" as const };
-            await setDoc(docRef, updatedProfile, { merge: true });
-            setUser(updatedProfile);
-          } else {
-            setUser(profile);
-          }
-        } else {
-          // Fallback if doc doesn't exist yet
-          const newProfile: UserProfile = {
+      try {
+        if (firebaseUser) {
+          const userEmail = (firebaseUser.email || "").toLowerCase();
+          const isSuperadmin = userEmail === SUPERADMIN_EMAIL.toLowerCase();
+
+          // Perfil base inmediato (así nunca se queda bloqueada la app si falla Firestore)
+          const fallbackProfile: UserProfile = {
             uid: firebaseUser.uid,
             email: firebaseUser.email || '',
+            displayName: firebaseUser.displayName || undefined,
             role: isSuperadmin ? "admin" : "customer",
             isClubMember: false,
             points: isSuperadmin ? 9999 : 0,
             createdAt: Date.now()
           };
-          await setDoc(docRef, newProfile);
-          setUser(newProfile);
+
+          try {
+            // Intentar leer y actualizar Firestore
+            const docRef = doc(db, "users", firebaseUser.uid);
+            const docSnap = await getDoc(docRef);
+            
+            if (docSnap.exists()) {
+              const profile = docSnap.data() as UserProfile;
+              if (isSuperadmin && profile.role !== "admin") {
+                const updatedProfile = { ...profile, role: "admin" as const };
+                try {
+                  await setDoc(docRef, updatedProfile, { merge: true });
+                } catch {}
+                setUser(updatedProfile);
+              } else {
+                setUser(profile);
+              }
+            } else {
+              try {
+                await setDoc(docRef, fallbackProfile);
+              } catch {}
+              setUser(fallbackProfile);
+            }
+          } catch (firestoreErr) {
+            console.warn("No se pudo conectar a Firestore o faltan permisos, usando perfil en memoria:", firestoreErr);
+            setUser(fallbackProfile);
+          }
+        } else {
+          setUser(null);
         }
-      } else {
+      } catch (err) {
+        console.error("Error en AuthStateChanged:", err);
         setUser(null);
+      } finally {
+        // SIEMPRE liberamos el loading para que nunca se congele la pantalla
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
