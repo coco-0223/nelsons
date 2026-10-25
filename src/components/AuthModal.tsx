@@ -6,7 +6,7 @@ import { X } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
-import { UserProfile } from "@/types";
+import { UserProfile, SUPERADMIN_EMAIL } from "@/types";
 
 export function AuthModal() {
   const { showAuthModal, setShowAuthModal, authView, setAuthView } = useAuth();
@@ -41,6 +41,8 @@ export function AuthModal() {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
+        const isSuperadmin = (userCred.user.email || email).trim().toLowerCase() === SUPERADMIN_EMAIL.toLowerCase();
+
         const newProfile: UserProfile = {
           uid: userCred.user.uid,
           email: userCred.user.email || email,
@@ -49,9 +51,9 @@ export function AuthModal() {
           address,
           neighborhood,
           apartment,
-          role: "customer",
+          role: isSuperadmin ? "admin" : "customer",
           isClubMember: false,
-          points: 50, // Welcome points!
+          points: isSuperadmin ? 9999 : 50, // Welcome points!
           referredBy: referralCode || undefined,
           referralCode: name.split(' ')[0].toUpperCase() + "-" + Math.random().toString(36).substring(2, 6).toUpperCase(),
           createdAt: Date.now()

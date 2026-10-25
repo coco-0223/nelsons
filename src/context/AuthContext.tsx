@@ -8,7 +8,7 @@ import {
   User 
 } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { UserProfile } from "@/types";
+import { UserProfile, SUPERADMIN_EMAIL } from "@/types";
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -37,17 +37,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Fetch custom user profile from Firestore
         const docRef = doc(db, "users", firebaseUser.uid);
         const docSnap = await getDoc(docRef);
+        const isSuperadmin = (firebaseUser.email || "").toLowerCase() === SUPERADMIN_EMAIL.toLowerCase();
         
         if (docSnap.exists()) {
-          setUser(docSnap.data() as UserProfile);
+          const profile = docSnap.data() as UserProfile;
+          // Si es superadmin aseguramos que tenga role: "admin"
+          if (isSuperadmin && profile.role !== "admin") {
+            const updatedProfile = { ...profile, role: "admin" as const };
+            await setDoc(docRef, updatedProfile, { merge: true });
+            setUser(updatedProfile);
+          } else {
+            setUser(profile);
+          }
         } else {
           // Fallback if doc doesn't exist yet
           const newProfile: UserProfile = {
             uid: firebaseUser.uid,
             email: firebaseUser.email || '',
-            role: "customer",
+            role: isSuperadmin ? "admin" : "customer",
             isClubMember: false,
-            points: 0,
+            points: isSuperadmin ? 9999 : 0,
             createdAt: Date.now()
           };
           await setDoc(docRef, newProfile);

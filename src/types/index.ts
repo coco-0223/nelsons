@@ -1,3 +1,5 @@
+export const SUPERADMIN_EMAIL = "cocobustos.93@gmail.com";
+
 export interface Product {
   id?: string;
   name: string;
