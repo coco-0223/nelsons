@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { Product } from "@/types";
 
 interface CurvedHeroCarouselProps {
@@ -8,303 +8,331 @@ interface CurvedHeroCarouselProps {
   onSelectProduct: (product: Product) => void;
 }
 
-export function CurvedHeroCarousel({ products, onSelectProduct }: CurvedHeroCarouselProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+const TOTAL_CARDS = 10;
+const PITCH = 196;
+const LOOP_WIDTH = TOTAL_CARDS * PITCH; // 1960u
+const AUTO_SPEED = 50; // 50u por segundo (derecha a izquierda)
 
-  // Preparamos los items para el carrusel (repetimos para que sea un loop fluido)
+/**
+ * Generador exacto de path SVG para trapezoide con esquinas redondeadas
+ * Soporta tanto cuando hR >= hL (derecha de la pantalla) como cuando hL > hR (izquierda de la pantalla)
+ * manteniendo todo dentro del bounding box [0..w, 0..maxH].
+ */
+function makeQuadPath(w: number, hL: number, hR: number, r = 15): string {
+  const minH = Math.min(hL, hR);
+  const maxH = Math.max(hL, hR);
+  r = Math.min(r, w / 2, minH / 2);
+
+  const yTL = (maxH - hL) / 2;
+  const yBL = yTL + hL;
+  const yTR = (maxH - hR) / 2;
+  const yBR = yTR + hR;
+
+  // Pendiente superior e inferior para que las curvas Q en las 4 esquinas sean suaves
+  const topSlope = (yTR - yTL) / w;
+  const botSlope = (yBR - yBL) / w;
+
+  const yTL_in = yTL + topSlope * r;
+  const yTR_in = yTR - topSlope * r;
+  const yBR_in = yBR - botSlope * r;
+  const yBL_in = yBL + botSlope * r;
+
+  return (
+    `path("M ${r.toFixed(2)} ${yTL_in.toFixed(2)} ` +
+    `L ${(w - r).toFixed(2)} ${yTR_in.toFixed(2)} Q ${w.toFixed(2)} ${yTR.toFixed(2)} ${w.toFixed(2)} ${(yTR + r).toFixed(2)} ` +
+    `L ${w.toFixed(2)} ${(yBR - r).toFixed(2)} Q ${w.toFixed(2)} ${yBR.toFixed(2)} ${(w - r).toFixed(2)} ${yBR_in.toFixed(2)} ` +
+    `L ${r.toFixed(2)} ${yBL_in.toFixed(2)} Q 0 ${yBL.toFixed(2)} 0 ${(yBL - r).toFixed(2)} ` +
+    `L 0 ${(yTL + r).toFixed(2)} Q 0 ${yTL.toFixed(2)} ${r.toFixed(2)} ${yTL_in.toFixed(2)} Z")`
+  );
+}
+
+export function CurvedHeroCarousel({ products, onSelectProduct }: CurvedHeroCarouselProps) {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Exactamente 10 tarjetas como en el script original (repetimos productos si hay menos de 10)
   const items = useMemo(() => {
     if (!products || products.length === 0) return [];
-    // Duplicamos si son pocos para tener mínimo 8-10 tarjetas continuas
-    let base = [...products];
-    while (base.length < 10) {
-      base = [...base, ...products];
+    const list: Product[] = [];
+    for (let i = 0; i < TOTAL_CARDS; i++) {
+      list.push(products[i % products.length]);
     }
-    return base.slice(0, 14);
+    return list;
   }, [products]);
 
-  // Estado de desplazamiento
-  const scrollOffsetRef = useRef(0);
-  const isDraggingRef = useRef(false);
-  const startXRef = useRef(0);
-  const dragStartOffsetRef = useRef(0);
+  // Estado mutable en refs para que el bucle requestAnimationFrame corra a 60/120fps sin re-renderizar React
+  const scrollPosRef = useRef(0);
   const velocityRef = useRef(0);
-  const lastXRef = useRef(0);
-  const lastTimeRef = useRef(0);
-
-  // Cards state for rendering
-  const [cardPositions, setCardPositions] = useState<
-    Array<{
-      product: Product;
-      x: number;
-      width: number;
-      leftHeight: number;
-      rightHeight: number;
-      centerY: number;
-      clipPath: string;
-      photo: string | null;
-      isVideo: boolean;
-      index: number;
-    }>
-  >([]);
+  const isDraggingRef = useRef(false);
+  const hasMovedRef = useRef(false);
+  const startPointerXRef = useRef(0);
+  const lastPointerXRef = useRef(0);
+  const scaleRef = useRef(1);
 
   useEffect(() => {
-    let animationFrameId: number;
-    let lastTimestamp = performance.now();
+    let rafId: number;
+    let lastTime = performance.now();
 
-    const updatePhysics = (timestamp: number) => {
-      const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.1);
-      lastTimestamp = timestamp;
+    const updateScale = () => {
+      if (!outerRef.current || !wrapRef.current) return;
+      const vw = outerRef.current.clientWidth || window.innerWidth;
+      // En celulares (<=820px) usamos una base de 680u para que las tarjetas se vean grandes; en desktop 1440u
+      const baseWidth = vw <= 820 ? 680 : 1440;
+      const s = vw / baseWidth;
+      scaleRef.current = s;
 
-      if (!isDraggingRef.current) {
-        // Inercia si hay velocidad residual
-        if (Math.abs(velocityRef.current) > 0.5) {
-          scrollOffsetRef.current += velocityRef.current * dt;
-          velocityRef.current *= Math.pow(0.05, dt); // desaceleración ~95% por segundo
-        } else {
-          // Auto-scroll continuo hacia la izquierda (50 unidades por segundo)
-          scrollOffsetRef.current -= 50 * dt;
-        }
-      }
-
-      // Geometría del arco cilíndrico (según la fórmula exacta del prompt):
-      // Centro = 720, Pitch = 196u, Ancho base 1440
-      const count = items.length;
-      if (count === 0) return;
-      const pitch = 196;
-      const totalWidth = count * pitch;
-
-      // Normalizar offset para loop infinito
-      let offset = scrollOffsetRef.current % totalWidth;
-      if (offset > 0) offset -= totalWidth;
-
-      const computed = [];
-
-      for (let i = 0; i < count; i++) {
-        // Posición base sin empujar
-        let rawX = (i * pitch + offset) % totalWidth;
-        if (rawX < -pitch * 2) rawX += totalWidth;
-        if (rawX > 1440 + pitch) rawX -= totalWidth;
-
-        // t es la distancia no empujada respecto al centro (720)
-        const t = rawX - 720;
-        
-        // Empuje de cilindro para mantener separación natural
-        const tNorm = t / 706;
-        const x = 720 + t * (1 + 0.083 * Math.pow(tNorm, 2));
-
-        // Solo procesamos si está visible en el frame (con margen)
-        if (x < -180 || x > 1620) continue;
-
-        // Distancia normalizada d respecto al centro
-        const d = Math.min(Math.abs(x - 720) / 706, 1.4);
-
-        // Ancho de la tarjeta: (170 + 48 * d^2)
-        const width = 170 + 48 * Math.pow(d, 2);
-
-        // Altura de los bordes izquierdo y derecho (simulando vista interior de cilindro)
-        const leftEdgeX = x - width / 2;
-        const rightEdgeX = x + width / 2;
-        const qLeft = Math.min(Math.abs(leftEdgeX - 720) / 706, 1.5);
-        const qRight = Math.min(Math.abs(rightEdgeX - 720) / 706, 1.5);
-
-        const leftHeight = 280 + 92 * Math.pow(qLeft, 2.6);
-        const rightHeight = 280 + 92 * Math.pow(qRight, 2.6);
-
-        // Centro vertical en el frame (curvatura sutil en el eje Y)
-        const centerY = 200 - 12 * Math.pow(d, 2);
-
-        // Creamos la forma convexa con perspectiva de cilindro
-        const r = 16; // border radius
-        const hw = width / 2;
-        const hl = leftHeight / 2;
-        const hr = rightHeight / 2;
-
-        // Path poligonal redondeado o quad
-        const clipPath = `polygon(
-          0px 0px,
-          100% ${((hr - hl) / 2 + 10).toFixed(1)}px,
-          100% 100%,
-          0px 100%
-        )`;
-
-        const product = items[i];
-        const photo =
-          Array.isArray(product.images) && product.images.length > 0
-            ? product.images[0]
-            : product.imageUrl || null;
-
-        const isVideo = Boolean(photo && (photo.endsWith(".mp4") || photo.endsWith(".webm") || photo.endsWith(".gif")));
-
-        computed.push({
-          product,
-          x,
-          width,
-          leftHeight,
-          rightHeight,
-          centerY,
-          clipPath,
-          photo,
-          isVideo,
-          index: i,
-        });
-      }
-
-      setCardPositions(computed);
-      animationFrameId = requestAnimationFrame(updatePhysics);
+      // Centramos el lienzo de 1440x420 escalado con transform
+      const scaledHeight = 420 * s;
+      outerRef.current.style.height = `${scaledHeight}px`;
+      const offsetX = (vw - 1440 * s) / 2;
+      wrapRef.current.style.transform = `translate3d(${offsetX}px, 0, 0) scale(${s})`;
     };
 
-    animationFrameId = requestAnimationFrame(updatePhysics);
-    return () => cancelAnimationFrame(animationFrameId);
+    updateScale();
+    window.addEventListener("resize", updateScale);
+
+    const tick = (now: number) => {
+      const dt = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+
+      if (!isDraggingRef.current) {
+        // Inercia: decae ~95% por segundo
+        velocityRef.current *= Math.pow(0.05, dt);
+        // Auto-scroll base
+        scrollPosRef.current += (velocityRef.current + AUTO_SPEED) * dt;
+      }
+
+      // Normalización cíclica
+      scrollPosRef.current = ((scrollPosRef.current % LOOP_WIDTH) + LOOP_WIDTH) % LOOP_WIDTH;
+
+      // Actualización geométrica directa en el DOM de cada tarjeta (igual al script original)
+      for (let i = 0; i < TOTAL_CARDS; i++) {
+        const card = cardRefs.current[i];
+        if (!card) continue;
+
+        // Cálculo del offset sin desplazar 't' centrado en x = 720
+        let t = (i * PITCH - scrollPosRef.current) % LOOP_WIDTH;
+        if (t < -LOOP_WIDTH / 2) t += LOOP_WIDTH;
+        if (t > LOOP_WIDTH / 2) t -= LOOP_WIDTH;
+
+        // x con empuje hacia el exterior
+        const normT = t / 706;
+        const x = 720 + t * (1 + 0.083 * Math.pow(normT, 2));
+
+        // Distancia normalizada al centro
+        const d = Math.abs(x - 720) / 706;
+
+        // Dimensiones según fórmula de cilindro
+        const width = 170 + 48 * Math.pow(d, 2);
+        const leftEdgeX = x - width / 2;
+        const rightEdgeX = x + width / 2;
+
+        const qL = Math.abs(leftEdgeX - 720) / 706;
+        const qR = Math.abs(rightEdgeX - 720) / 706;
+
+        const hL = 280 + 92 * Math.pow(qL, 2.6);
+        const hR = 280 + 92 * Math.pow(qR, 2.6);
+        const maxH = Math.max(hL, hR);
+
+        // Centro vertical (687 - 500) - 12 * d^2
+        const cy = 187 - 12 * Math.pow(d, 2);
+
+        // Aplicar posición y recorte curvado directamente al elemento DOM
+        card.style.width = `${width}px`;
+        card.style.height = `${maxH}px`;
+        card.style.transform = `translate3d(${leftEdgeX}px, ${cy - maxH / 2}px, 0)`;
+
+        const clip = makeQuadPath(width, hL, hR, 15);
+        card.style.clipPath = clip;
+        (card.style as unknown as Record<string, string>).webkitClipPath = clip;
+
+        // Ocultar si está fuera del encuadre
+        card.style.display = leftEdgeX > 1480 || rightEdgeX < -40 ? "none" : "block";
+      }
+
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", updateScale);
+    };
   }, [items]);
 
-  // Touch / Pointer drag handlers
-  const handlePointerDown = (e: React.PointerEvent) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     isDraggingRef.current = true;
-    startXRef.current = e.clientX;
-    lastXRef.current = e.clientX;
-    dragStartOffsetRef.current = scrollOffsetRef.current;
-    lastTimeRef.current = performance.now();
+    hasMovedRef.current = false;
+    startPointerXRef.current = e.clientX;
+    lastPointerXRef.current = e.clientX;
     velocityRef.current = 0;
-    if (containerRef.current) {
-      containerRef.current.setPointerCapture(e.pointerId);
-    }
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDraggingRef.current) return;
-    const now = performance.now();
-    const dt = Math.max((now - lastTimeRef.current) / 1000, 0.001);
-    const deltaX = e.clientX - lastXRef.current;
-
-    velocityRef.current = deltaX / dt;
-    lastXRef.current = e.clientX;
-    lastTimeRef.current = now;
-
-    // Escala de movimiento (ajustada a la resolución)
-    const factor = containerRef.current
-      ? 1440 / Math.max(containerRef.current.clientWidth, 320)
-      : 1;
-
-    scrollOffsetRef.current += deltaX * factor;
-  };
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (!isDraggingRef.current) return;
-    isDraggingRef.current = false;
-    if (containerRef.current) {
+    if (wrapRef.current) {
+      wrapRef.current.classList.add("cursor-grabbing");
       try {
-        containerRef.current.releasePointerCapture(e.pointerId);
+        wrapRef.current.setPointerCapture(e.pointerId);
       } catch {}
     }
   };
 
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    const dxScreen = e.clientX - lastPointerXRef.current;
+    if (Math.abs(e.clientX - startPointerXRef.current) > 6) {
+      hasMovedRef.current = true;
+    }
+    lastPointerXRef.current = e.clientX;
+
+    // Convertir el delta de pantalla al espacio de 1440u
+    const dx = dxScreen / (scaleRef.current || 1);
+    scrollPosRef.current -= dx; // 1:1 con el puntero
+    velocityRef.current = -dx / 0.016; // Velocidad para inercia
+  };
+
+  const stopDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    if (wrapRef.current) {
+      wrapRef.current.classList.remove("cursor-grabbing");
+      try {
+        wrapRef.current.releasePointerCapture(e.pointerId);
+      } catch {}
+    }
+  };
+
+  if (items.length === 0) return null;
+
   return (
-    <div className="w-full relative py-6 overflow-hidden select-none">
-      {/* Contenedor relativo escalable basado en un lienzo virtual de 1440u */}
+    <div ref={outerRef} className="w-full relative overflow-hidden select-none">
+      {/* Lienzo nativo de 1440x420 escalado uniformemente */}
       <div
-        ref={containerRef}
+        ref={wrapRef}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        className="w-full h-[370px] sm:h-[410px] md:h-[430px] relative cursor-grab active:cursor-grabbing touch-pan-y"
-        style={{ perspective: "1000px" }}
+        onPointerUp={stopDrag}
+        onPointerCancel={stopDrag}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "1440px",
+          height: "420px",
+          transformOrigin: "top left",
+          touchAction: "pan-y",
+        }}
+        className="cursor-grab select-none"
       >
-        {cardPositions.map((card) => {
-          const avgHeight = (card.leftHeight + card.rightHeight) / 2;
-          const displayPrice = card.product.priceOffer || card.product.priceToday;
+        <div className="absolute inset-0 w-full h-full pointer-events-none">
+          {items.map((product, i) => {
+            const photo =
+              Array.isArray(product.images) && product.images.length > 0
+                ? product.images[0]
+                : product.imageUrl || null;
+            const isVideo = Boolean(
+              photo && (photo.endsWith(".mp4") || photo.endsWith(".webm") || photo.endsWith(".gif"))
+            );
+            const displayPrice = product.priceOffer || product.priceToday;
 
-          // Convertimos las coordenadas de 1440u a porcentajes del ancho del viewport
-          const leftPercent = (card.x / 1440) * 100;
-          const widthPercent = (card.width / 1440) * 100;
-
-          return (
-            <div
-              key={`${card.product.id}-${card.index}`}
-              onClick={() => onSelectProduct(card.product)}
-              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group cursor-pointer"
-              style={{
-                left: `${leftPercent}%`,
-                width: `clamp(140px, ${widthPercent}vw, 240px)`,
-                height: `clamp(230px, ${(avgHeight / 1080) * 100}vh, 370px)`,
-                zIndex: Math.round(500 - Math.abs(card.x - 720)),
-                transition: isDraggingRef.current ? "none" : "transform 0.15s ease-out",
-              }}
-            >
+            return (
               <div
-                className="w-full h-full rounded-[20px] overflow-hidden relative shadow-2xl border-2 border-[#FFC71F]/40 group-hover:border-[#FFC71F] group-hover:scale-[1.03] transition-all duration-300 bg-[#0a192c]"
-                style={{
-                  clipPath: card.clipPath,
+                key={`${product.id}-${i}`}
+                ref={(el) => {
+                  cardRefs.current[i] = el;
                 }}
+                onClick={() => {
+                  if (!hasMovedRef.current) {
+                    onSelectProduct(product);
+                  }
+                }}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  overflow: "hidden",
+                  background: "#0f2540",
+                  willChange: "clip-path, transform",
+                  pointerEvents: "auto",
+                }}
+                className="group cursor-pointer"
               >
-                {/* Media: Video, GIF o Foto */}
-                {card.photo ? (
-                  card.isVideo ? (
-                    <video
-                      src={card.photo}
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover select-none pointer-events-none"
-                    />
+                {/* Media de la tarjeta (Pizza / Focaccia) */}
+                <div className="absolute inset-0 w-full h-full pointer-events-none">
+                  {photo ? (
+                    isVideo ? (
+                      <video
+                        src={photo}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <img
+                        src={photo}
+                        alt={product.name}
+                        draggable={false}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    )
                   ) : (
-                    <img
-                      src={card.photo}
-                      alt={card.product.name}
-                      draggable={false}
-                      className="w-full h-full object-cover select-none pointer-events-none group-hover:scale-110 transition-transform duration-700"
-                    />
-                  )
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-5xl bg-gradient-to-br from-[#1b456e] via-[#24598d] to-[#0f2540]">
-                    {card.product.category === "focaccia" ? "🫓" : "🍕"}
-                  </div>
-                )}
+                    <div className="w-full h-full flex items-center justify-center text-6xl bg-gradient-to-br from-[#1b456e] via-[#24598d] to-[#0f2540]">
+                      {product.category === "focaccia" ? "🫓" : "🍕"}
+                    </div>
+                  )}
+                </div>
 
-                {/* Gradiente oscuro superior e inferior */}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/85 pointer-events-none" />
+                {/* Degradado sutil inferior para que se lea el nombre de la pizza/focaccia */}
+                <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/80 pointer-events-none" />
 
-                {/* Badge de Categoría Superior */}
-                <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none">
-                  <span className="bg-[#24598d]/90 text-[#FFC71F] border border-[#FFC71F]/50 text-[10px] sm:text-xs font-archivo uppercase px-2.5 py-0.5 rounded-full shadow-md">
-                    {card.product.category === "focaccia" ? "Focaccia" : "Pizza"}
+                {/* Badge categoría arriba a la izquierda */}
+                <div className="absolute top-[18px] left-[14px] right-[14px] flex items-center justify-between pointer-events-none z-[2]">
+                  <span className="bg-[#24598d]/90 text-[#FFC71F] border border-[#FFC71F]/50 text-[11px] font-archivo uppercase px-2.5 py-0.5 rounded-full shadow">
+                    {product.category === "focaccia" ? "Focaccia" : "Pizza"}
                   </span>
-                  {card.product.priceOffer && (
-                    <span className="bg-red-500 text-white text-[9px] font-archivo uppercase px-2 py-0.5 rounded-full shadow">
+                  {product.priceOffer && (
+                    <span className="bg-red-500 text-white text-[10px] font-archivo uppercase px-2 py-0.5 rounded-full shadow">
                       Oferta
                     </span>
                   )}
                 </div>
 
-                {/* Overlay Inferior: Nombre y Precio */}
-                <div className="absolute bottom-2.5 left-2.5 right-2.5 pointer-events-none text-left">
-                  <span className="font-archivo text-white text-xs sm:text-sm uppercase leading-tight line-clamp-1 drop-shadow-md block">
-                    {card.product.name}
-                  </span>
-                  <div className="flex items-center justify-between mt-0.5">
-                    <span className="font-archivo text-[#FFC71F] text-sm sm:text-base drop-shadow">
-                      ${displayPrice.toLocaleString("es-AR")}
+                {/* Nombre y precio al lado del botón esmerilado inferior izquierdo */}
+                <div className="absolute bottom-[14px] left-[12px] right-[12px] flex items-end gap-2.5 pointer-events-none z-[2]">
+                  {/* Icono play esmerilado idéntico a .reel-card-play */}
+                  <div
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      background: "rgba(255, 255, 255, 0.25)",
+                      backdropFilter: "blur(6px)",
+                      WebkitBackdropFilter: "blur(6px)",
+                    }}
+                    className="flex-shrink-0 flex items-center justify-center"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      style={{ width: "10px", height: "10px", fill: "#ffffff", marginLeft: "2px" }}
+                    >
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </div>
+
+                  <div className="flex-1 min-w-0 text-left">
+                    <span className="font-archivo text-white text-[13px] uppercase leading-tight line-clamp-1 drop-shadow block">
+                      {product.name}
                     </span>
-                    <span className="text-[10px] text-white/80 font-bold bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded-full">
-                      Ver en Menú →
+                    <span className="font-archivo text-[#FFC71F] text-[14px] leading-none drop-shadow">
+                      ${displayPrice.toLocaleString("es-AR")}
                     </span>
                   </div>
                 </div>
-
-                {/* Pequeño icono translúcido play/sparkle */}
-                <div className="absolute bottom-2.5 left-2.5 w-6 h-6 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white/80 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                  ▶
-                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Indicador sutil de arrastre */}
-      <div className="text-center mt-1 text-[11px] font-bold text-white/60 tracking-wider uppercase pointer-events-none">
-        ← Arrastrá para explorar pizzas y focaccias →
+            );
+          })}
+        </div>
       </div>
     </div>
   );
