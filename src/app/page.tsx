@@ -247,6 +247,9 @@ export default function Home() {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [flyingItems, setFlyingItems] = useState<{id: string, icon: string, x: number, y: number, cp1x: number, cp1y: number, cp2x: number, cp2y: number, cp3x: number, cp3y: number}[]>([]);
 
+  // Detección de la sección activa para el widget inferior fijo
+  const [currentSection, setCurrentSection] = useState<"today" | "scheduled">("today");
+
   const collapseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const clearCollapseTimer = () => {
@@ -302,6 +305,23 @@ export default function Home() {
     
     setIsLoaded(true);
 
+    // Observer para saber en qué sección está el usuario posicionado
+    const handleScrollObserver = () => {
+      const scheduledEl = document.getElementById("menu-programado");
+      if (scheduledEl) {
+        const rect = scheduledEl.getBoundingClientRect();
+        // Si la parte superior de "menu-programado" entra a la mitad de la pantalla
+        if (rect.top <= window.innerHeight * 0.45) {
+          setCurrentSection("scheduled");
+          return;
+        }
+      }
+      setCurrentSection("today");
+    };
+
+    window.addEventListener("scroll", handleScrollObserver, { passive: true });
+    handleScrollObserver();
+
     // Marketing Daily Promo Check
     const checkDailyPromo = () => {
       if (!localStorage.getItem("coquetas_uid")) {
@@ -313,6 +333,10 @@ export default function Home() {
       }
     };
     checkDailyPromo();
+
+    return () => {
+      window.removeEventListener("scroll", handleScrollObserver);
+    };
   }, []);
 
   useEffect(() => {
@@ -528,24 +552,32 @@ export default function Home() {
         </div>
       )}
 
-      {/* QUICK SMOOTH-SCROLL SWITCHER WIDGET (Hoy vs Otra Fecha) */}
+      {/* QUICK SMOOTH-SCROLL SWITCHER WIDGET (Hoy vs Otra Fecha sincronizado con el scroll) */}
       <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-50 flex items-center bg-[#0f2540] shadow-2xl rounded-full p-1.5 border-2 border-[#FFC71F]">
         <div className="flex gap-1 relative">
           <button 
             type="button"
             onClick={() => smoothScrollToSection("menu")}
-            className="font-archivo relative z-10 flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-full text-xs sm:text-sm text-white hover:bg-[#24598d] transition-all cursor-pointer uppercase"
+            className={`font-archivo relative z-10 flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-full text-xs sm:text-sm uppercase transition-all duration-300 cursor-pointer ${
+              currentSection === "today"
+                ? "bg-[#24598d] text-white shadow-md ring-2 ring-emerald-400/60"
+                : "text-white/70 hover:text-white hover:bg-white/10"
+            }`}
           >
-            <Clock size={15} className="text-emerald-400" />
+            <Clock size={15} className={currentSection === "today" ? "text-emerald-400" : "text-gray-400"} />
             <span>🟢 Comprar Hoy</span>
           </button>
           
           <button 
             type="button"
             onClick={() => smoothScrollToSection("menu-programado")}
-            className="font-archivo relative z-10 flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-full text-xs sm:text-sm bg-[#FFC71F] text-[#0f2540] hover:bg-[#ffcf3d] transition-all cursor-pointer uppercase shadow"
+            className={`font-archivo relative z-10 flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-full text-xs sm:text-sm uppercase transition-all duration-300 cursor-pointer shadow ${
+              currentSection === "scheduled"
+                ? "bg-[#FFC71F] text-[#0f2540] ring-2 ring-white/60 font-black"
+                : "text-white/70 hover:text-white hover:bg-white/10"
+            }`}
           >
-            <CalendarDays size={15} />
+            <CalendarDays size={15} className={currentSection === "scheduled" ? "text-[#0f2540]" : "text-[#FFC71F]"} />
             <span>🟡 Comprar Otro Día</span>
           </button>
         </div>
@@ -713,18 +745,6 @@ export default function Home() {
               <span>🫓</span>
               <span>VER FOCACCIAS</span>
             </button>
-          </div>
-
-          {/* 2 SUBTLE INFO PILLS */}
-          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 px-4 mb-2">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/30 bg-white/5 text-white/90 text-xs sm:text-sm font-medium">
-              <Clock size={14} className="text-[#FFC71F]" />
-              <span>Entregas en el día o programadas</span>
-            </div>
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/30 bg-white/5 text-white/90 text-xs sm:text-sm font-medium">
-              <Sparkles size={14} className="text-[#FFC71F]" />
-              <span>Fresco, casero y natural</span>
-            </div>
           </div>
         </section>
       </div>
