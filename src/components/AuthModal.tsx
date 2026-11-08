@@ -63,7 +63,15 @@ export function AuthModal() {
       setShowAuthModal(false);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Ocurrió un error. Verificá tus datos.");
+      if (err.code === "auth/invalid-credential" || err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
+        setError("Email o contraseña incorrectos. Si aún no creaste la cuenta en esta app, hacé clic en 'Registrarme' arriba.");
+      } else if (err.code === "auth/email-already-in-use") {
+        setError("Este email ya está registrado. Por favor, iniciá sesión.");
+      } else if (err.code === "auth/weak-password") {
+        setError("La contraseña debe tener al menos 6 caracteres.");
+      } else {
+        setError(err.message || "Ocurrió un error. Verificá tus datos.");
+      }
     } finally {
       setLoading(false);
     }
