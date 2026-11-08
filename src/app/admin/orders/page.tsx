@@ -31,15 +31,34 @@ export default function AdminOrders() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
+    // 1. Cargar backup de órdenes locales inmediatamente para que nunca esté vacío si Firebase bloquea
+    try {
+      const local = JSON.parse(localStorage.getItem("coquetas_orders") || "[]");
+      if (Array.isArray(local) && local.length > 0) {
+        setOrders(local);
+        setLoading(false);
+      }
+    } catch {}
+
+    // 2. Suscribirse a Firestore con manejador de error para evitar excepciones uncaught
     const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
-    const unsub = onSnapshot(q, (snap) => {
-      const loaded: Order[] = [];
-      snap.forEach(d => {
-        loaded.push({ id: d.id, ...d.data() } as Order);
-      });
-      setOrders(loaded);
-      setLoading(false);
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const loaded: Order[] = [];
+        snap.forEach((d) => {
+          loaded.push({ id: d.id, ...d.data() } as Order);
+        });
+        setOrders(loaded);
+        setLoading(false);
+      },
+      (error) => {
+        console.warn("No se pudo conectar a Firestore (permisos/reglas pendientes), usando almacenamiento local:", error.message);
+        const local = JSON.parse(localStorage.getItem("coquetas_orders") || "[]");
+        setOrders(Array.isArray(local) ? local : []);
+        setLoading(false);
+      }
+    );
     return () => unsub();
   }, []);
 
