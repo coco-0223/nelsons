@@ -37,16 +37,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             Acceso Restringido
           </h2>
           <p className="text-gray-600 text-sm mb-6 leading-relaxed">
-            Este panel de administración es exclusivo para <strong>{SUPERADMIN_EMAIL}</strong>.
-            {user ? (
-              <span className="block mt-2 text-red-600 font-medium">
-                Has iniciado sesión con ({user.email}), que no posee permisos de administrador.
-              </span>
-            ) : (
-              <span className="block mt-2 text-gray-500">
-                Iniciá sesión con tu cuenta de administrador para continuar.
-              </span>
-            )}
+            Se requiere autorización de administrador para acceder a este panel.
           </p>
 
           <div className="space-y-3">
@@ -56,7 +47,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               className="font-archivo w-full py-3.5 px-6 rounded-xl bg-[#24598d] hover:bg-[#1b456e] text-white flex items-center justify-center gap-2 uppercase tracking-wider text-sm transition-all shadow-md cursor-pointer"
             >
               <LogIn size={18} />
-              <span>Iniciar Sesión como Admin</span>
+              <span>Iniciar Sesión</span>
             </button>
 
             <Link
