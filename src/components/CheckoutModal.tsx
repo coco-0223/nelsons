@@ -185,6 +185,55 @@ export function CheckoutModal({ cart, cartTotal, settings, onClose, onCheckoutSu
       const existingOrders = JSON.parse(localStorage.getItem("coquetas_orders") || "[]");
       localStorage.setItem("coquetas_orders", JSON.stringify([{ id: Date.now().toString(), ...orderData }, ...existingOrders]));
 
+      // DÉBITO AUTOMÁTICO DE STOCK (Solo para compras del mismo día / Para Hoy)
+      try {
+        const storedProducts = localStorage.getItem("coquetas_products");
+        const storedSettings = localStorage.getItem("coquetas_settings");
+        if (storedProducts) {
+          let currentProducts = JSON.parse(storedProducts);
+          let currentSettings = storedSettings ? JSON.parse(storedSettings) : {};
+          let uCategories = currentSettings.universalStockCategories || [];
+
+          cart.forEach((cartItem) => {
+            // Solo debitamos stock si es compra para Hoy (no programada a futuro)
+            if (!cartItem.isForFutureDate) {
+              const qty = cartItem.quantity;
+              const prodId = cartItem.product.id;
+
+              // 1. Debitar stock individual del producto
+              currentProducts = currentProducts.map((p: any) => {
+                if (p.id === prodId) {
+                  const newStock = Math.max(0, (p.stock || 0) - qty);
+                  return { ...p, stock: newStock, isAvailable: newStock > 0 };
+                }
+                return p;
+              });
+
+              // 2. Debitar stock universal de la categoría si corresponde (ej: prepizzas grandes, mini, etc)
+              const matchedProd = currentProducts.find((p: any) => p.id === prodId);
+              if (matchedProd && matchedProd.universalStockCategoryId) {
+                uCategories = uCategories.map((cat: any) => {
+                  if (cat.id === matchedProd.universalStockCategoryId) {
+                    return { ...cat, stock: Math.max(0, (cat.stock || 0) - qty) };
+                  }
+                  return cat;
+                });
+              }
+            }
+          });
+
+          // Guardar stocks actualizados
+          localStorage.setItem("coquetas_products", JSON.stringify(currentProducts));
+          currentSettings.universalStockCategories = uCategories;
+          localStorage.setItem("coquetas_settings", JSON.stringify(currentSettings));
+
+          // Disparar evento para que la vista del menú se actualice al instante
+          window.dispatchEvent(new Event("storage"));
+        }
+      } catch (stockErr) {
+        console.error("Error al debitar stock:", stockErr);
+      }
+
       try {
         await addDoc(collection(db, "orders"), orderData);
       } catch {

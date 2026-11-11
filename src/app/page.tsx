@@ -367,12 +367,32 @@ export default function Home() {
         statusText: "Stock Ilimitado",
       };
     } else {
-      const available = product.stock > 0;
+      // Si el producto fue marcado manualmente como "Sin Stock"
+      if (product.isForceOutOfStock) {
+        return {
+          price: product.priceOffer || product.priceToday,
+          originalPrice: product.priceOffer ? product.priceToday : null,
+          isAvailable: false,
+          statusText: "Sin Stock para hoy",
+        };
+      }
+
+      // Si pertenece a una categoría de stock universal
+      let effectiveStock = product.stock;
+      if (product.universalStockCategoryId && settings.universalStockCategories) {
+        const uCat = settings.universalStockCategories.find(c => c.id === product.universalStockCategoryId);
+        if (uCat) {
+          // El stock efectivo es el mínimo entre el stock individual y el universal
+          effectiveStock = Math.min(product.stock, uCat.stock);
+        }
+      }
+
+      const available = effectiveStock > 0;
       return {
         price: product.priceOffer || product.priceToday,
         originalPrice: product.priceOffer ? product.priceToday : null,
         isAvailable: available,
-        statusText: available ? `Quedan ${product.stock}` : "Sin Stock para hoy",
+        statusText: available ? `Quedan ${effectiveStock}` : "Sin Stock para hoy",
       };
     }
   };
@@ -692,7 +712,7 @@ export default function Home() {
           {/* NUEVO CARRUSEL CILÍNDRICO CURVO INTERACTIVO 3D */}
           <div className="w-full mt-2 mb-6">
             <CurvedHeroCarousel
-              products={products}
+              products={products.filter(p => !p.isHidden)}
               onSelectProduct={(product) => {
                 handleProductRectangleClick(product);
               }}
@@ -792,9 +812,9 @@ export default function Home() {
             <div className="text-center py-12 font-archivo text-white/70">Cargando MENÚ...</div>
           ) : (
             <div className="space-y-12">
-              {/* Menú 1 para Hoy (Color Azul) */}
+              {/* Menú 1 para Hoy (Color Azul) - Filtrando productos ocultos */}
               <NelsonsSplitMenu
-                products={products}
+                products={products.filter(p => !p.isHidden)}
                 variant="today"
                 colorTheme="blue"
                 activeCategory={activeCategory}
@@ -809,7 +829,7 @@ export default function Home() {
 
               {/* Menú 2 para Hoy (Categoría Inversa, Color Complementario) */}
               <NelsonsSplitMenu
-                products={products}
+                products={products.filter(p => !p.isHidden)}
                 variant="today"
                 colorTheme="complementary"
                 activeCategory={activeCategory === "pizza" ? "focaccia" : "pizza"}
@@ -856,9 +876,9 @@ export default function Home() {
             <div className="text-center py-12 font-archivo text-[#0f2540]">Cargando Menú Programado...</div>
           ) : (
             <div className="space-y-12">
-              {/* Menú 1 Programado (Color Azul) */}
+              {/* Menú 1 Programado (Color Azul) - Filtrando productos ocultos */}
               <NelsonsSplitMenu
-                products={products}
+                products={products.filter(p => !p.isHidden)}
                 variant="scheduled"
                 colorTheme="blue"
                 activeCategory={activeCategory}
@@ -873,7 +893,7 @@ export default function Home() {
 
               {/* Menú 2 Programado (Categoría Inversa, Color Complementario) */}
               <NelsonsSplitMenu
-                products={products}
+                products={products.filter(p => !p.isHidden)}
                 variant="scheduled"
                 colorTheme="complementary"
                 activeCategory={activeCategory === "pizza" ? "focaccia" : "pizza"}

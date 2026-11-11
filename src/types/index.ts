@@ -1,5 +1,11 @@
 export const SUPERADMIN_EMAIL = "cocobustos.93@gmail.com";
 
+export interface UniversalStockCategory {
+  id: string;
+  name: string; // ej: "Prepizzas Grandes (Freezer)", "Mini Prepizzas"
+  stock: number; // Stock total compartido
+}
+
 export interface Product {
   id?: string;
   name: string;
@@ -13,7 +19,10 @@ export interface Product {
   priceOffer?: number;
   priceWholesale?: number;
   wholesaleMinQuantity?: number;
-  stock: number;
+  stock: number; // Stock individual
+  universalStockCategoryId?: string; // ID de la categoría de stock universal a la que pertenece (opcional)
+  isHidden?: boolean; // Ocultar producto de la tienda
+  isForceOutOfStock?: boolean; // Forzar estado "Sin Stock" sin cambiar el número
   imageUrl?: string;
   images?: string[];
   category: "pizza" | "focaccia" | "empanada" | "bebida" | "postre" | "otro";
@@ -132,6 +141,7 @@ export interface Settings {
   // Checkout & Delivery Config
   paymentMethods?: PaymentMethod[];
   deliveryDays?: DeliveryDay[];
+  universalStockCategories?: UniversalStockCategory[];
   
   // Marketing Configs
   marketing_welcomeModal?: boolean;

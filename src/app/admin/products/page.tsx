@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Product, Recipe } from "@/types";
-import { Plus, Trash2, Edit2, BookOpen, X, Upload, Image as ImageIcon, Star, Link as LinkIcon, ArrowLeft, ArrowRight } from "lucide-react";
+import { Product, Recipe, UniversalStockCategory } from "@/types";
+import { Plus, Trash2, Edit2, BookOpen, X, Upload, Image as ImageIcon, Star, Link as LinkIcon, ArrowLeft, ArrowRight, Copy, Eye, EyeOff, Ban, CheckCircle2, Layers } from "lucide-react";
 
 const compressImageFile = (file: File, maxWidth = 900, quality = 0.78): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -41,11 +41,15 @@ const compressImageFile = (file: File, maxWidth = 900, quality = 0.78): Promise<
 export default function AdminProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [universalCategories, setUniversalCategories] = useState<UniversalStockCategory[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<"all" | "pizza" | "focaccia">("all");
   
   const [showProductModal, setShowProductModal] = useState(false);
   const [showRecipeModal, setShowRecipeModal] = useState(false);
+  const [showUniversalStockModal, setShowUniversalStockModal] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatStock, setNewCatStock] = useState<number>(0);
   
   const [addingStockProductId, setAddingStockProductId] = useState<string | null>(null);
   const [stockToAdd, setStockToAdd] = useState<string>('');
@@ -61,10 +65,37 @@ export default function AdminProducts() {
     stock: 0,
     category: 'pizza',
     images: [],
-    isAvailable: true
+    isAvailable: true,
+    isHidden: false,
+    isForceOutOfStock: false,
   });
 
   useEffect(() => {
+    // 1. Cargar Settings y Categorías de Stock Universal
+    const storedSettings = localStorage.getItem("coquetas_settings");
+    if (storedSettings) {
+      const parsed = JSON.parse(storedSettings);
+      if (parsed.universalStockCategories && Array.isArray(parsed.universalStockCategories)) {
+        setUniversalCategories(parsed.universalStockCategories);
+      } else {
+        // Inicial por defecto útil para el usuario
+        const defaultCats: UniversalStockCategory[] = [
+          { id: "prepizzas-freezer", name: "Prepizzas Grandes (Freezer)", stock: 30 },
+          { id: "mini-prepizzas", name: "Mini Prepizzas", stock: 15 },
+        ];
+        setUniversalCategories(defaultCats);
+        parsed.universalStockCategories = defaultCats;
+        localStorage.setItem("coquetas_settings", JSON.stringify(parsed));
+      }
+    } else {
+      const defaultCats: UniversalStockCategory[] = [
+        { id: "prepizzas-freezer", name: "Prepizzas Grandes (Freezer)", stock: 30 },
+        { id: "mini-prepizzas", name: "Mini Prepizzas", stock: 15 },
+      ];
+      setUniversalCategories(defaultCats);
+      localStorage.setItem("coquetas_settings", JSON.stringify({ universalStockCategories: defaultCats }));
+    }
+
     const storedProducts = localStorage.getItem("coquetas_products");
     if (storedProducts) {
       const parsed = JSON.parse(storedProducts);
@@ -78,7 +109,10 @@ export default function AdminProducts() {
           ...base,
           category,
           images,
-          imageUrl: images[0] || base.imageUrl
+          imageUrl: images[0] || base.imageUrl,
+          universalStockCategoryId: base.universalStockCategoryId || (category === "pizza" ? "prepizzas-freezer" : undefined),
+          isHidden: !!base.isHidden,
+          isForceOutOfStock: !!base.isForceOutOfStock,
         };
       });
       setProducts(migrated);
@@ -89,6 +123,62 @@ export default function AdminProducts() {
     }
     setIsLoaded(true);
   }, []);
+
+  const saveUniversalCategories = (updatedCats: UniversalStockCategory[]) => {
+    setUniversalCategories(updatedCats);
+    try {
+      const stored = localStorage.getItem("coquetas_settings");
+      const parsed = stored ? JSON.parse(stored) : {};
+      parsed.universalStockCategories = updatedCats;
+      localStorage.setItem("coquetas_settings", JSON.stringify(parsed));
+      window.dispatchEvent(new Event("storage"));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleUpdateUniversalStock = (catId: string, newStock: number) => {
+    const updated = universalCategories.map(c => c.id === catId ? { ...c, stock: Math.max(0, newStock) } : c);
+    saveUniversalCategories(updated);
+  };
+
+  const handleAddUniversalCategory = () => {
+    if (!newCatName.trim()) return;
+    const newCat: UniversalStockCategory = {
+      id: "stock-cat-" + Date.now(),
+      name: newCatName.trim(),
+      stock: Math.max(0, newCatStock),
+    };
+    saveUniversalCategories([...universalCategories, newCat]);
+    setNewCatName("");
+    setNewCatStock(0);
+  };
+
+  const handleDeleteUniversalCategory = (id: string) => {
+    if (!confirm("¿Eliminar esta categoría de stock universal? Los productos asociados perderán este vínculo.")) return;
+    saveUniversalCategories(universalCategories.filter(c => c.id !== id));
+  };
+
+  const handleDuplicateProduct = (product: Product) => {
+    const copy: Product = {
+      ...product,
+      id: "nelson-copy-" + Date.now(),
+      name: `${product.name} (Copia)`,
+      createdAt: Date.now(),
+    };
+    const updated = [copy, ...products];
+    saveProducts(updated);
+  };
+
+  const handleToggleHide = (product: Product) => {
+    const updated = products.map(p => p.id === product.id ? { ...p, isHidden: !p.isHidden } : p);
+    saveProducts(updated);
+  };
+
+  const handleToggleForceOutOfStock = (product: Product) => {
+    const updated = products.map(p => p.id === product.id ? { ...p, isForceOutOfStock: !p.isForceOutOfStock } : p);
+    saveProducts(updated);
+  };
 
   const saveProducts = (updated: Product[]) => {
     setProducts(updated);
@@ -334,6 +424,13 @@ export default function AdminProducts() {
         </div>
         <div className="flex flex-wrap gap-3">
           <button 
+            onClick={() => setShowUniversalStockModal(true)}
+            className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-600/20 cursor-pointer"
+          >
+            <Layers size={18} />
+            Stock Universal (Freezer)
+          </button>
+          <button 
             onClick={() => setShowRecipeModal(true)}
             className="bg-white border-2 border-[var(--primary)] text-[var(--primary)] px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-[var(--primary)]/5 transition-colors cursor-pointer"
           >
@@ -560,6 +657,16 @@ export default function AdminProducts() {
                       </div>
                     </td>
                     <td className="p-4">
+                      {/* Vínculo con categoría de stock universal */}
+                      {product.universalStockCategoryId && (
+                        <div className="mb-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 inline-flex items-center gap-1">
+                          <Layers size={11} />
+                          <span>
+                            {universalCategories.find(c => c.id === product.universalStockCategoryId)?.name || "Universal"}:{" "}
+                            <strong>{universalCategories.find(c => c.id === product.universalStockCategoryId)?.stock ?? 0} unid.</strong>
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         <input 
                           type="number"
@@ -569,7 +676,7 @@ export default function AdminProducts() {
                             const val = Number(e.target.value);
                             handleUpdateProductFields(product.id!, {
                               stock: val,
-                              isAvailable: val > 0
+                              isAvailable: val > 0 && !product.isForceOutOfStock
                             });
                           }}
                         />
@@ -581,12 +688,55 @@ export default function AdminProducts() {
                           + Sumar
                         </button>
                       </div>
-                      {!product.isAvailable && (
+                      {product.isForceOutOfStock ? (
+                        <div className="mt-1 text-xs font-black text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200 inline-block">
+                          🚫 Forzado Sin Stock
+                        </div>
+                      ) : !product.isAvailable ? (
                         <div className="mt-1 text-xs font-bold text-red-500">Sin Stock para Hoy</div>
-                      )}
+                      ) : null}
                     </td>
                     <td className="p-4 text-center">
-                      <div className="flex justify-center gap-2">
+                      <div className="flex justify-center items-center gap-1.5">
+                        {/* Botón Sin Stock rápido */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleForceOutOfStock(product)}
+                          className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                            product.isForceOutOfStock
+                              ? "text-red-700 bg-red-100 hover:bg-red-200"
+                              : "text-gray-400 hover:text-red-600 hover:bg-red-50"
+                          }`}
+                          title={product.isForceOutOfStock ? "Quitar forzado de Sin Stock" : "Marcar como 'Sin Stock' (sin poner 0)"}
+                        >
+                          <Ban size={18} />
+                        </button>
+
+                        {/* Botón Ocultar / Mostrar en la tienda */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleHide(product)}
+                          className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                            product.isHidden
+                              ? "text-amber-700 bg-amber-100 hover:bg-amber-200"
+                              : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                          }`}
+                          title={product.isHidden ? "Producto Oculto (click para mostrar)" : "Ocultar de la tienda"}
+                        >
+                          {product.isHidden ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+
+                        {/* Botón Duplicar Producto */}
+                        <button
+                          type="button"
+                          onClick={() => handleDuplicateProduct(product)}
+                          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                          title="Duplicar producto"
+                        >
+                          <Copy size={18} />
+                        </button>
+
+                        {/* Botón Editar */}
                         <button 
                           onClick={() => openEditProductModal(product)}
                           className="p-2 text-gray-500 hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded-lg transition-colors cursor-pointer" 
@@ -594,6 +744,8 @@ export default function AdminProducts() {
                         >
                           <Edit2 size={18} />
                         </button>
+
+                        {/* Botón Eliminar */}
                         <button 
                           onClick={() => handleDelete(product.id!)}
                           className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" 
@@ -899,7 +1051,7 @@ export default function AdminProducts() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Stock Disponible para Hoy</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Stock Individual para Hoy</label>
                   <input 
                     type="number" 
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-[var(--primary)] outline-none text-gray-900"
@@ -907,6 +1059,52 @@ export default function AdminProducts() {
                     onChange={e => setEditingProduct({...editingProduct, stock: Number(e.target.value)})}
                   />
                 </div>
+              </div>
+
+              {/* Categoría de Stock Universal asignada */}
+              <div className="bg-indigo-50/70 p-3.5 rounded-xl border border-indigo-200 space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
+                  <Layers size={14} className="text-indigo-600" />
+                  <span>Vincular a Stock Universal (Freezer)</span>
+                </label>
+                <select
+                  value={editingProduct.universalStockCategoryId || ""}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, universalStockCategoryId: e.target.value || undefined })}
+                  className="w-full p-2 bg-white rounded-lg border border-indigo-300 text-sm font-bold text-gray-800 outline-none focus:border-indigo-600"
+                >
+                  <option value="">Sin Stock Universal (Usa solo stock individual)</option>
+                  {universalCategories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} — ({c.stock} en freezer disponibles)
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-indigo-800">
+                  * Si el stock de este freezer se agota, este sabor se marcará como &quot;Sin Stock&quot; automáticamente.
+                </p>
+              </div>
+
+              {/* Controles de Visibilidad y Estado Forzado */}
+              <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700 select-none">
+                  <input
+                    type="checkbox"
+                    checked={!!editingProduct.isForceOutOfStock}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, isForceOutOfStock: e.target.checked })}
+                    className="w-4 h-4 rounded text-red-600 focus:ring-red-500"
+                  />
+                  <span>🚫 Forzar &quot;Sin Stock&quot; para Hoy</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700 select-none">
+                  <input
+                    type="checkbox"
+                    checked={!!editingProduct.isHidden}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, isHidden: e.target.checked })}
+                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500"
+                  />
+                  <span>👁️ Ocultar Producto de la Tienda</span>
+                </label>
               </div>
 
               <div className="grid grid-cols-2 gap-4 bg-gray-50 p-3 rounded-xl border border-gray-200">
@@ -983,6 +1181,114 @@ export default function AdminProducts() {
                   </button>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: Stock Universal (Freezer) */}
+      {showUniversalStockModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl my-8 flex flex-col">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center">
+                  <Layers size={22} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-gray-900">Stock Universal (Freezer)</h2>
+                  <p className="text-xs text-gray-500">Masa base compartida entre múltiples pizzas o focaccias</p>
+                </div>
+              </div>
+              <button onClick={() => setShowUniversalStockModal(false)} className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Lista de Categorías Existentes */}
+              <div className="space-y-3">
+                <label className="block text-xs font-black uppercase tracking-wider text-gray-500">
+                  Categorías en Freezer:
+                </label>
+                {universalCategories.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">No hay categorías creadas todavía.</p>
+                ) : (
+                  universalCategories.map((cat) => (
+                    <div
+                      key={cat.id}
+                      className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-gray-900 text-sm">{cat.name}</p>
+                        <p className="text-[11px] text-gray-500">
+                          Productos vinculados: {products.filter(p => p.universalStockCategoryId === cat.id).length}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <label className="text-xs font-bold text-gray-500">Stock:</label>
+                        <input
+                          type="number"
+                          className="w-20 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 text-base font-black text-indigo-700 text-center outline-none focus:border-indigo-600"
+                          value={cat.stock}
+                          onChange={(e) => handleUpdateUniversalStock(cat.id, Number(e.target.value))}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteUniversalCategory(cat.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          title="Eliminar categoría"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Crear Nueva Categoría */}
+              <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 space-y-3">
+                <label className="block text-xs font-black uppercase tracking-wider text-indigo-900">
+                  + Crear Nueva Categoría de Stock Universal
+                </label>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Ej: Mini Prepizzas, Focaccias Clásicas, Calzones..."
+                    value={newCatName}
+                    onChange={(e) => setNewCatName(e.target.value)}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-gray-300 text-sm font-bold text-gray-900 outline-none focus:border-indigo-600"
+                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      placeholder="Stock inicial en freezer"
+                      value={newCatStock || ""}
+                      onChange={(e) => setNewCatStock(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-white rounded-xl border border-gray-300 text-sm font-bold text-gray-900 outline-none focus:border-indigo-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddUniversalCategory}
+                      disabled={!newCatName.trim()}
+                      className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-xl transition-colors disabled:opacity-50 shrink-0 cursor-pointer shadow-md"
+                    >
+                      Agregar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowUniversalStockModal(false)}
+                className="px-6 py-2.5 font-black bg-gray-900 text-white rounded-xl hover:bg-black transition-colors cursor-pointer"
+              >
+                Listo
+              </button>
             </div>
           </div>
         </div>
