@@ -9,7 +9,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { UserProfile, SUPERADMIN_EMAIL } from "@/types";
 
 export function AuthModal() {
-  const { showAuthModal, setShowAuthModal, authView, setAuthView } = useAuth();
+  const { showAuthModal, setShowAuthModal, authView, setAuthView, switchMockUser } = useAuth();
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -58,7 +58,17 @@ export function AuthModal() {
           referralCode: name.split(' ')[0].toUpperCase() + "-" + Math.random().toString(36).substring(2, 6).toUpperCase(),
           createdAt: Date.now()
         };
-        await setDoc(doc(db, "users", userCred.user.uid), newProfile);
+
+        // Guardar en Firestore y también respaldar en sessionStorage
+        try {
+          await setDoc(doc(db, "users", userCred.user.uid), newProfile);
+        } catch (firestoreErr) {
+          console.warn("Firestore offline, guardando perfil en sesión local:", firestoreErr);
+        }
+
+        if (switchMockUser) {
+          switchMockUser(newProfile);
+        }
       }
       setShowAuthModal(false);
     } catch (err: any) {
@@ -101,6 +111,27 @@ export function AuthModal() {
         </div>
         
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Botón de auto-rellenar datos de prueba para testear rápido */}
+          {authView === 'register' && (
+            <button
+              type="button"
+              onClick={() => {
+                const randomId = Math.floor(100 + Math.random() * 900);
+                setName(`Cliente Test ${randomId}`);
+                setPhone(`${Math.floor(10000000 + Math.random() * 89999999)}`.slice(0, 8));
+                setAddress("Av. Cabildo 2400");
+                setNeighborhood("Belgrano");
+                setApartment("3A");
+                setEmail(`test${randomId}@gmail.com`);
+                setPassword("123456");
+                setConfirmPassword("123456");
+              }}
+              className="w-full text-xs font-bold text-[#24598d] bg-blue-50 hover:bg-blue-100 p-2.5 rounded-xl border border-blue-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <span>⚡ Auto-rellenar datos de prueba</span>
+            </button>
+          )}
+
           {error && (
             <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-medium border border-red-100">
               {error}
