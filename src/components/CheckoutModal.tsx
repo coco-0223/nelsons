@@ -287,36 +287,45 @@ export function CheckoutModal({ cart, cartTotal, settings, onClose, onCheckoutSu
               ))}
             </select>
 
-            {hasFutureItems && (
-              <div className="p-4 rounded-2xl bg-[#FFC71F]/25 border-2 border-[#FFC71F] space-y-3">
+            {/* Selección de Fecha y Entrega Lógica */}
+            {hasFutureItems ? (
+              <div className="p-4 rounded-2xl bg-[#FFC71F]/20 border-2 border-[#FFC71F] space-y-3">
                 <div className="font-archivo text-sm text-[#0f2540] flex items-center gap-2 uppercase">
-                  <CalendarDays size={18} />
-                  <span>¿Para qué fecha querés los productos programados?</span>
+                  <CalendarDays size={18} className="text-[#0f2540]" />
+                  <span>Fecha de Entrega para Programados</span>
                 </div>
+                <p className="text-xs text-gray-700">
+                  Elegí a partir de mañana en adelante qué día y horario querés recibir tu encargo:
+                </p>
                 <input
                   type="date"
                   min={new Date(Date.now() + 86400000).toISOString().split("T")[0]}
                   value={deliveryDate}
                   onChange={(e) => setDeliveryDate(e.target.value)}
-                  className="w-full p-3 border-2 border-[#0f2540]/20 rounded-xl outline-none focus:border-[#0f2540] bg-white font-bold text-[#0f2540]"
+                  className="w-full p-3 border-2 border-[#0f2540]/30 rounded-xl outline-none focus:border-[#0f2540] bg-white font-bold text-[#0f2540]"
                 />
                 <input
                   type="text"
-                  placeholder="Franja horaria preferida (Ej: 20:30 hs)"
+                  placeholder="Franja horaria preferida (Ej: 20:30 a 22:00 hs)"
                   value={deliveryTime}
                   onChange={(e) => setDeliveryTime(e.target.value)}
                   className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-[#0f2540] bg-white text-sm"
                 />
               </div>
-            )}
-
-            {!hasFutureItems && settings.deliveryDays && settings.deliveryDays.some(d => d.active) && (
-              <select value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-[var(--primary)] bg-white">
-                <option value="">Entrega Hoy (Lo antes posible)</option>
-                {settings.deliveryDays?.filter(d => d.active).map(d => (
-                  <option key={d.dayOfWeek} value={d.dayOfWeek}>{DAYS_OF_WEEK[d.dayOfWeek]}</option>
-                ))}
-              </select>
+            ) : (
+              <div className="p-4 rounded-2xl bg-blue-50 border-2 border-[#24598d]/40 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#24598d] text-white flex items-center justify-center shrink-0">
+                  <Clock size={20} />
+                </div>
+                <div>
+                  <h5 className="font-archivo text-xs sm:text-sm text-[#24598d] uppercase">
+                    Entrega Inmediata (Hoy)
+                  </h5>
+                  <p className="text-xs text-gray-600">
+                    Tu pedido entra a cocina directo para ser entregado hoy lo antes posible.
+                  </p>
+                </div>
+              </div>
             )}
           </div>
 
@@ -324,41 +333,55 @@ export function CheckoutModal({ cart, cartTotal, settings, onClose, onCheckoutSu
             <div className="space-y-4">
               <h4 className="font-archivo text-gray-900 border-b pb-2 uppercase">Resumen del Pedido</h4>
 
-              {/* BLOQUE 1: ENTREGA HOY */}
+              {/* BLOQUE AZUL: PRODUCTOS PARA HOY */}
               {hasTodayItems && (
-                <div className="rounded-2xl bg-emerald-50 border-2 border-emerald-500/40 p-3.5 space-y-2">
-                  <div className="font-archivo text-xs uppercase text-emerald-900 flex items-center gap-1.5">
-                    <Clock size={14} />
-                    <span>🟢 Entrega Hoy</span>
+                <div className="rounded-2xl bg-[#24598d]/10 border-2 border-[#24598d] p-4 space-y-2.5">
+                  <div className="font-archivo text-xs uppercase text-[#24598d] flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-black">
+                      <Clock size={15} />
+                      <span>🟢 Productos para Hoy</span>
+                    </span>
+                    <span className="text-[11px] font-bold bg-[#24598d] text-white px-2 py-0.5 rounded-full">
+                      Entrega Inmediata
+                    </span>
                   </div>
-                  {todayItems.map((item, idx) => {
-                    const price = item.product.priceOffer || item.product.priceToday;
-                    return (
-                      <div key={idx} className="flex justify-between items-center text-sm bg-white px-3 py-2 rounded-xl border border-emerald-100">
-                        <span className="font-bold text-gray-800">{item.quantity}x {item.product.name}</span>
-                        <span className="font-archivo text-emerald-700">${(price * item.quantity).toLocaleString("es-AR")}</span>
-                      </div>
-                    );
-                  })}
+                  <div className="space-y-1.5">
+                    {todayItems.map((item, idx) => {
+                      const price = item.product.priceOffer || item.product.priceToday;
+                      return (
+                        <div key={idx} className="flex justify-between items-center text-sm bg-white px-3.5 py-2.5 rounded-xl border border-[#24598d]/20 shadow-sm">
+                          <span className="font-bold text-gray-900">{item.quantity}x {item.product.name}</span>
+                          <span className="font-archivo text-[#24598d] font-black">${(price * item.quantity).toLocaleString("es-AR")}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
-              {/* BLOQUE 2: ENTREGA FUTURA (OTRO DÍA) */}
+              {/* BLOQUE AMARILLO: PRODUCTOS PARA OTRO DÍA */}
               {hasFutureItems && (
-                <div className="rounded-2xl bg-[#FFC71F]/25 border-2 border-[#FFC71F] p-3.5 space-y-2">
-                  <div className="font-archivo text-xs uppercase text-[#0f2540] flex items-center gap-1.5">
-                    <CalendarDays size={14} />
-                    <span>🟡 Entrega Futura (Otro Día)</span>
+                <div className="rounded-2xl bg-[#FFC71F]/20 border-2 border-[#FFC71F] p-4 space-y-2.5">
+                  <div className="font-archivo text-xs uppercase text-[#0f2540] flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-black">
+                      <CalendarDays size={15} />
+                      <span>🟡 Productos para Otro Día</span>
+                    </span>
+                    <span className="text-[11px] font-black bg-[#FFC71F] text-[#0f2540] px-2 py-0.5 rounded-full">
+                      Programado
+                    </span>
                   </div>
-                  {futureItems.map((item, idx) => {
-                    const price = item.product.priceOffer || item.product.priceScheduled;
-                    return (
-                      <div key={idx} className="flex justify-between items-center text-sm bg-white px-3 py-2 rounded-xl border border-[#FFC71F]/50">
-                        <span className="font-bold text-gray-800">{item.quantity}x {item.product.name}</span>
-                        <span className="font-archivo text-[#0f2540]">${(price * item.quantity).toLocaleString("es-AR")}</span>
-                      </div>
-                    );
-                  })}
+                  <div className="space-y-1.5">
+                    {futureItems.map((item, idx) => {
+                      const price = item.product.priceOffer || item.product.priceScheduled;
+                      return (
+                        <div key={idx} className="flex justify-between items-center text-sm bg-white px-3.5 py-2.5 rounded-xl border border-[#FFC71F]/50 shadow-sm">
+                          <span className="font-bold text-gray-900">{item.quantity}x {item.product.name}</span>
+                          <span className="font-archivo text-[#0f2540] font-black">${(price * item.quantity).toLocaleString("es-AR")}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

@@ -358,6 +358,32 @@ export default function Home() {
     }
   };
 
+  // Cálculo del stock restante en tiempo real (restando lo que ya está en el carrito para Hoy)
+  const getRemainingStock = (product: Product): number => {
+    if (product.isForceOutOfStock) return 0;
+    
+    // 1. Stock base (mínimo entre individual y universal si aplica)
+    let baseStock = product.stock;
+    if (product.universalStockCategoryId && settings.universalStockCategories) {
+      const uCat = settings.universalStockCategories.find(c => c.id === product.universalStockCategoryId);
+      if (uCat) {
+        // También debemos considerar cuánto de esta categoría universal ya se reservó en el carrito
+        const totalCategoryInCart = cart
+          .filter(item => !item.isForFutureDate && item.product.universalStockCategoryId === product.universalStockCategoryId)
+          .reduce((sum, item) => sum + item.quantity, 0);
+        const remainingUniversal = Math.max(0, uCat.stock - totalCategoryInCart);
+        baseStock = Math.min(baseStock, remainingUniversal + (cart.find(i => !i.isForFutureDate && i.product.id === product.id)?.quantity || 0));
+      }
+    }
+
+    // 2. Restar lo que el usuario ya agregó al carrito de este producto para Hoy
+    const inCart = cart
+      .filter(item => !item.isForFutureDate && item.product.id === product.id)
+      .reduce((sum, item) => sum + item.quantity, 0);
+
+    return Math.max(0, baseStock - inCart);
+  };
+
   const getProductDisplayInfo = (product: Product, variant: "today" | "scheduled") => {
     if (variant === 'scheduled') {
       return {
@@ -367,32 +393,13 @@ export default function Home() {
         statusText: "Stock Ilimitado",
       };
     } else {
-      // Si el producto fue marcado manualmente como "Sin Stock"
-      if (product.isForceOutOfStock) {
-        return {
-          price: product.priceOffer || product.priceToday,
-          originalPrice: product.priceOffer ? product.priceToday : null,
-          isAvailable: false,
-          statusText: "Sin Stock para hoy",
-        };
-      }
-
-      // Si pertenece a una categoría de stock universal
-      let effectiveStock = product.stock;
-      if (product.universalStockCategoryId && settings.universalStockCategories) {
-        const uCat = settings.universalStockCategories.find(c => c.id === product.universalStockCategoryId);
-        if (uCat) {
-          // El stock efectivo es el mínimo entre el stock individual y el universal
-          effectiveStock = Math.min(product.stock, uCat.stock);
-        }
-      }
-
-      const available = effectiveStock > 0;
+      const remaining = getRemainingStock(product);
+      const available = remaining > 0;
       return {
         price: product.priceOffer || product.priceToday,
         originalPrice: product.priceOffer ? product.priceToday : null,
         isAvailable: available,
-        statusText: available ? `Quedan ${effectiveStock}` : "Sin Stock para hoy",
+        statusText: available ? `Quedan ${remaining}` : "Sin Stock para hoy",
       };
     }
   };
@@ -409,6 +416,15 @@ export default function Home() {
   const futureCartItems = cart.filter((item) => item.isForFutureDate);
 
   const addToCart = (product: Product, event: React.MouseEvent, isForFutureDate: boolean) => {
+    // Si es para Hoy, verificar que haya stock disponible en tiempo real
+    if (!isForFutureDate) {
+      const remaining = getRemainingStock(product);
+      if (remaining <= 0) {
+        setOutOfStockProduct(product);
+        return;
+      }
+    }
+
     const hadTodayItems = cart.some((item) => !item.isForFutureDate);
     const hadFutureItems = cart.some((item) => item.isForFutureDate);
 
@@ -473,6 +489,15 @@ export default function Home() {
   };
 
   const updateCartQuantity = (product: Product, isForFuture: boolean, delta: number) => {
+    // Si están intentando sumar unidades para Hoy, verificar que no supere el stock disponible
+    if (!isForFuture && delta > 0) {
+      const remaining = getRemainingStock(product);
+      if (remaining <= 0) {
+        alert(`No hay más stock disponible de ${product.name} para hoy.`);
+        return;
+      }
+    }
+
     setCart(prev => {
       return prev.map(item => {
         if (item.product.id === product.id && item.isForFutureDate === isForFuture) {
