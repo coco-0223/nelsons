@@ -12,6 +12,7 @@ import { UserProfile, SUPERADMIN_EMAIL } from "@/types";
 
 interface AuthContextType {
   user: UserProfile | null;
+  setUser: (user: UserProfile | null) => void;
   loading: boolean;
   logout: () => Promise<void>;
   showAuthModal: boolean;
@@ -19,6 +20,7 @@ interface AuthContextType {
   authView: 'login' | 'register';
   setAuthView: (view: 'login' | 'register') => void;
   openAuth: (view: 'login' | 'register') => void;
+  switchMockUser: (profile: UserProfile | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -26,13 +28,27 @@ const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mockActive, setMockActive] = useState(false);
   
   // UI State for Auth Modal
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authView, setAuthView] = useState<'login' | 'register'>('login');
 
   useEffect(() => {
+    // Si hay un usuario mock guardado en sessionStorage, usarlo
+    try {
+      const savedMock = sessionStorage.getItem("nelsons_mock_user");
+      if (savedMock) {
+        setUser(JSON.parse(savedMock));
+        setMockActive(true);
+        setLoading(false);
+        return;
+      }
+    } catch {}
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
+      // Si el usuario activó un mock, no pisarlo con el estado de Firebase
+      if (sessionStorage.getItem("nelsons_mock_user")) return;
       try {
         if (firebaseUser) {
           const userEmail = (firebaseUser.email || "").toLowerCase();
@@ -91,8 +107,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = async () => {
+    try {
+      sessionStorage.removeItem("nelsons_mock_user");
+    } catch {}
+    setMockActive(false);
     await signOut(auth);
     setUser(null);
+  };
+
+  const switchMockUser = (mockProfile: UserProfile | null) => {
+    if (mockProfile) {
+      try {
+        sessionStorage.setItem("nelsons_mock_user", JSON.stringify(mockProfile));
+      } catch {}
+      setMockActive(true);
+      setUser(mockProfile);
+    } else {
+      try {
+        sessionStorage.removeItem("nelsons_mock_user");
+      } catch {}
+      setMockActive(false);
+      setUser(null);
+    }
   };
 
   const openAuth = (view: 'login' | 'register') => {
@@ -103,13 +139,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{ 
       user, 
+      setUser,
       loading, 
       logout, 
       showAuthModal, 
       setShowAuthModal, 
       authView, 
       setAuthView,
-      openAuth 
+      openAuth,
+      switchMockUser
     }}>
       {children}
     </AuthContext.Provider>
