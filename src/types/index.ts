@@ -3,6 +3,10 @@ export const SUPERADMIN_EMAIL = "cocobustos.93@gmail.com";
 export interface Product {
   id?: string;
   name: string;
+  subtitle?: string;
+  showSubtitle?: boolean;
+  weightGrams?: number;
+  showWeight?: boolean;
   description: string;
   priceToday: number;
   priceScheduled: number;

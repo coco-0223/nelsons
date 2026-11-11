@@ -661,18 +661,74 @@ export default function AdminProducts() {
                 </div>
               </div>
 
-              {/* Nombre y Descripción */}
+              {/* Nombre, Subtítulo y Peso */}
               <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Nombre del Sabor (aparecerá en las píldoras del menú)</label>
                   <input 
                     type="text" 
-                    placeholder="Ej: Margarita, Fugazzeta Rellena, Focaccia de Romero y Olivas..."
+                    placeholder="Ej: Pre Pizza Gourmet, Margarita, Fugazzeta Rellena..."
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:border-[var(--primary)] outline-none text-gray-900 font-bold"
                     value={editingProduct.name}
                     onChange={e => setEditingProduct({...editingProduct, name: e.target.value})}
                   />
                 </div>
+
+                {/* Subtítulo debajo del título con toggle para ocultar */}
+                <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+                      Subtítulo (debajo del nombre en la foto)
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-600 select-none">
+                      <input 
+                        type="checkbox"
+                        checked={editingProduct.showSubtitle !== false}
+                        onChange={e => setEditingProduct({ ...editingProduct, showSubtitle: e.target.checked })}
+                        className="w-4 h-4 rounded text-[#24598d] focus:ring-[#24598d]"
+                      />
+                      <span>Mostrar en la carta</span>
+                    </label>
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="Ej: Masa madre fermentada 48hs con salsa pomodoro casera..."
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-[var(--primary)] outline-none text-gray-900 text-sm bg-white"
+                    value={editingProduct.subtitle || ''}
+                    onChange={e => setEditingProduct({...editingProduct, subtitle: e.target.value})}
+                  />
+                </div>
+
+                {/* Peso del ítem con toggle para ocultar */}
+                <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+                      Peso del Ítem (gramos)
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-600 select-none">
+                      <input 
+                        type="checkbox"
+                        checked={editingProduct.showWeight !== false}
+                        onChange={e => setEditingProduct({ ...editingProduct, showWeight: e.target.checked })}
+                        className="w-4 h-4 rounded text-[#24598d] focus:ring-[#24598d]"
+                      />
+                      <span>Mostrar en la carta</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="number" 
+                      placeholder="Ej: 550"
+                      className="w-48 px-4 py-2 rounded-lg border border-gray-300 focus:border-[var(--primary)] outline-none text-gray-900 text-sm font-bold bg-white"
+                      value={editingProduct.weightGrams ?? ''}
+                      onChange={e => setEditingProduct({...editingProduct, weightGrams: e.target.value ? Number(e.target.value) : undefined})}
+                    />
+                    <span className="text-xs text-gray-500 font-medium">
+                      {editingProduct.weightGrams ? `Se mostrará como "${editingProduct.weightGrams >= 1000 ? (editingProduct.weightGrams / 1000).toFixed(1) + ' kg' : editingProduct.weightGrams + 'g'}"` : "Ingresá el peso en gramos (ej: 450)"}
+                    </span>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">
                     Descripción / Ingredientes (se despliega al tocar &quot;Ver descripción&quot;)

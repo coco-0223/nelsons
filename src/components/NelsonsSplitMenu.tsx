@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Product } from "@/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ShoppingBag, Sparkles, Info, CalendarDays, Clock, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ShoppingBag, Sparkles, Info, CalendarDays, Clock, Plus, Scale } from "lucide-react";
 
 interface ProductDisplayInfo {
   price: number;
@@ -246,17 +246,18 @@ export function NelsonsSplitMenu({
               <div className="lg:col-span-7 flex flex-col">
                 {selectedProduct && displayInfo && (
                   <div className="relative w-full min-h-[430px] sm:min-h-[500px] lg:h-full rounded-[28px] overflow-hidden shadow-2xl bg-[#0a192c] border-2 border-white/15 flex flex-col justify-between group">
-                    {/* CAROUSEL IMAGE BACKGROUND (Supports swipe on touch devices) */}
+                    {/* CAROUSEL IMAGE BACKGROUND (Supports swipe on touch devices + grow hover) */}
                     <AnimatePresence mode="wait">
                       {productImages.length > 0 ? (
                         <motion.img
                           key={`${selectedProduct.id}-${safeImageIndex}`}
                           src={productImages[safeImageIndex]}
                           alt={`${selectedProduct.name} - Foto ${safeImageIndex + 1}`}
-                          initial={{ opacity: 0, scale: 1.04 }}
+                          initial={{ opacity: 0, scale: 1 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.98 }}
-                          transition={{ duration: 0.35, ease: "easeOut" }}
+                          whileHover={{ scale: 1.05 }}
+                          transition={{ duration: 0.45, ease: "easeOut" }}
                           drag={hasMultipleImages ? "x" : false}
                           dragConstraints={{ left: 0, right: 0 }}
                           dragElastic={0.15}
@@ -268,7 +269,7 @@ export function NelsonsSplitMenu({
                               setCurrentImageIndex((prev) => (prev - 1 + productImages.length) % productImages.length);
                             }
                           }}
-                          className={`absolute inset-0 w-full h-full object-cover select-none ${
+                          className={`absolute inset-0 w-full h-full object-cover select-none transition-transform duration-500 ease-out ${
                             hasMultipleImages ? "cursor-grab active:cursor-grabbing" : ""
                           } ${!displayInfo.isAvailable ? "grayscale contrast-75" : ""}`}
                         />
@@ -287,29 +288,55 @@ export function NelsonsSplitMenu({
                       )}
                     </AnimatePresence>
 
-                    {/* Gradient overlays for crisp legibility */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/20 to-black/80 pointer-events-none" />
+                    {/* Difuminado suave EXCLUSIVAMENTE en los bordes internos (vignette), sin tapar el centro de la imagen */}
+                    <div 
+                      className="absolute inset-0 pointer-events-none"
+                      style={{
+                        boxShadow: "inset 0 0 90px 25px rgba(0, 0, 0, 0.75)",
+                      }}
+                    />
 
-                    {/* TOP OVERLAY: NAME, PRICE & COLLAPSIBLE "VER DESCRIPCIÓN" */}
-                    <div className="relative z-20 p-5 sm:p-7 flex flex-col items-start">
+                    {/* Degradado muy sutil solo en la parte superior para que el texto blanco contraste */}
+                    <div className="absolute top-0 inset-x-0 h-44 bg-gradient-to-b from-black/70 via-black/25 to-transparent pointer-events-none" />
+
+                    {/* TOP OVERLAY: NAME, SUBTITLE, WEIGHT, PRICE & COLLAPSIBLE "VER DESCRIPCIÓN" */}
+                    <div className="relative z-20 p-5 sm:p-7 flex flex-col items-start pointer-events-auto">
                       <div className="w-full flex flex-wrap items-start justify-between gap-3">
                         <div className="max-w-[78%]">
-                          <div
-                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-archivo uppercase tracking-wider mb-2 shadow ${
-                              isScheduled
-                                ? "bg-[#FFC71F] text-[#0f2540]"
-                                : "bg-emerald-400 text-[#0f2540]"
-                            }`}
-                          >
-                            <span>
-                              {isScheduled
-                                ? "🟡 Precio Programado (Otra Fecha)"
-                                : "🟢 Entrega Hoy"}
-                            </span>
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <div
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-archivo uppercase tracking-wider shadow ${
+                                isScheduled
+                                  ? "bg-[#FFC71F] text-[#0f2540]"
+                                  : "bg-emerald-400 text-[#0f2540]"
+                              }`}
+                            >
+                              <span>
+                                {isScheduled
+                                  ? "🟡 Precio Programado (Otra Fecha)"
+                                  : "🟢 Entrega Hoy"}
+                              </span>
+                            </div>
+
+                            {/* PESO EN GRAMOS (Configurable y ocultable desde admin) */}
+                            {selectedProduct.weightGrams && selectedProduct.showWeight !== false && (
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/20 text-white backdrop-blur-md border border-white/30 shadow">
+                                <Scale size={12} className="text-[#FFC71F]" />
+                                <span>{selectedProduct.weightGrams >= 1000 ? `${(selectedProduct.weightGrams / 1000).toFixed(1)} kg` : `${selectedProduct.weightGrams}g`}</span>
+                              </div>
+                            )}
                           </div>
+
                           <h3 className="font-archivo text-2xl sm:text-4xl text-white uppercase tracking-tight leading-none drop-shadow-md">
                             {selectedProduct.name}
                           </h3>
+
+                          {/* SUBTÍTULO (Configurable y ocultable desde admin) */}
+                          {selectedProduct.subtitle && selectedProduct.showSubtitle !== false && (
+                            <p className="mt-1 text-sm sm:text-base font-medium text-white/90 drop-shadow line-clamp-1 italic">
+                              {selectedProduct.subtitle}
+                            </p>
+                          )}
 
                           {/* PRICE BADGE */}
                           <div className="flex flex-wrap items-baseline gap-2.5 mt-2">
